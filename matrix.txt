@@ -1,0 +1,3 @@
+Kahoot:     Quiz (4 answers)    Time limit (limited)            Multi in quiz
+Quizizz:    Quiz (5 answers)    Time limit              Image   Multi-select    Fill-in-the-Blank   Poll
+Blooket:    Quiz (4 answers)    Time limit (300 sec)            Multi in quiz   Fill-in-the-Blank           CSV

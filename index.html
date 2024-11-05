@@ -5,6 +5,7 @@
     <meta charset="utf-8">
     <script src="https://cdn.jsdelivr.net/npm/brython@3/brython.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/brython@3/brython_stdlib.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/zipcelx@1.6.2/lib/standalone.min.js"></script>
     <style>
         html, body, div, span {
             margin: 0px;
@@ -17,12 +18,275 @@
         }
     </style>
 </head>
-<body onload="brython (0)">
+<body onload="brython (2)">
     <noscript>
         <p>JavaScript is required to use this website.</p>
     </noscript>
     <script type = "text/python">
-        import xlsxwriter
+        from browser import document, html, ajax, window
+        import json
+
+        """
+        Question types: "MCQ", "Type"
+        'Poll' can be supported but not implemented yet
+        Supported fields: "question", "type", "answers", "correct", "time", "image"
+        """
+
+        def show_metadata (title, creator, description, platform):
+            # TODO: Implement metadata display
+            window.console.log (f"show_metadata ({title}, {creator}, {description}, {platform})")
+
+        def show_warning (question, message):
+            # TODO: Implement warning display
+            window.console.log (f"show_warning ({question}, {message})")
+
+        def kahoot_import (game):
+            show_metadata (game ["title"], game ["creator_username"], game ["description"], "Kahoot")
+            export = []
+            for j, i in enumerate (game ["questions"]):
+                if i ["type"] not in ("quiz", "multiple_select_quiz", "open_ended"):
+                    show_warning (j, f"Question type {i ['type']} not supported, skipping")
+                    continue
+                question = {
+                    "question": i ["question"],
+                    "type": {"quiz": "MCQ", "multiple_select_quiz": "MCQ", "open_ended": "Type"} [i ["type"]],
+                    "time": i ["time"] // 1000,
+                    "image": i ["image"] if "image" in i else ""
+                }
+
+                answers, correct = [], []
+                for k in i ["choices"]:
+                    if "answer" in k:
+                        answers.append (k ["answer"])
+                    elif "image" in k and "altText" in k ["image"]:
+                        answers.append (k ["image"] ["altText"])
+                        show_warning (j, f"Image answer not supported, using alt text {k ["image"] ["altText"]}")
+                    else:
+                        show_warning (j, "Non-text answer not supported, skipping")
+                        break
+                    if k ["correct"]:
+                        correct.append (len (answers)) # 1-indexed
+                else:
+                    question ["answers"], question ["correct"] = answers, correct
+                    export.append (question)
+
+            return export
+                
+
+        def quizizz_import (game):
+            import re
+            game = game ["data"] ["quiz"]
+            show_metadata (game ["info"] ["name"], game ["createdBy"] ["local"] ["username"], "", "Quizizz")
+            game = game ["info"] ["questions"]
+            export = []
+
+            for j, i in enumerate (game):
+                if i ["type"] not in ("MCQ", "MSQ", "BLANK"):
+                    show_warning (j, f"Question type {i ['type']} not supported, skipping")
+                    continue
+
+                exp = re.compile ("<[^>]*>") # Strip HTML tag
+                question = {
+                    "question": exp.sub ("", i ["structure"] ["query"] ["text"]),
+                    "type": {"MCQ": "MCQ", "MSQ": "MCQ", "BLANK": "Type"} [i ["type"]],
+                    "time": i ["time"] // 1000,
+                    "image": i ["structure"] ["query"] ["media"] [0] ["url"] if i ["structure"] ["query"] ["media"] else "",
+                    "correct": []
+                }
+
+                if type (i ["structure"] ["answer"]) == int:
+                    if i ["structure"] ["answer"] > -1:
+                        question ["correct"] = [i ["structure"] ["answer"] + 1]
+                else:
+                    question ["correct"] = [k + 1 for k in i ["structure"] ["answer"]]
+                if not len (question ["correct"]):
+                    show_warning (j, "No correct answer found (likely a poll), skipping")
+                    continue
+
+                answers = []
+                for k in i ["structure"] ["options"]:
+                    if k ["type"] != "text":
+                        show_warning (j, "Non-text answer not supported, skipping")
+                        break
+                    answers.append (exp.sub ("", k ["text"]))
+                else:
+                    question ["answers"] = answers
+                    export.append (question)
+            return export
+
+        def blooket_import (game):
+            show_metadata (game ["title"], game ["author"], game ["desc"], "Blooket")
+            export = []
+            for i in game ["questions"]:
+                export.append ({
+                    "question": i ["question"],
+                    "type": {"mc": "MCQ", "typing": "Type"} [i ["qType"]],
+                    "answers": i ["answers"],
+                    "correct": [i ["answers"].index (j) + 1 for j in i ["correctAnswers"]],
+                    "time": i ["timeLimit"],
+                    "image": i ["image"] ["url"] if "image" in i else ""
+                })
+            return export
+
+        def add_row (values):
+            return [{"value": i, "type": "string"} for i in values]
+
+        def kahoot_export (game):
+            template = {
+                "filename": "quizizz-export",
+                "sheet": {
+                    "data": [
+                        [{
+                            "value": "Question - max 120 characters",
+                            "type": "string"
+                        }, {
+                            "value": "Answer 1 - max 75 characters",
+                            "type": "string"
+                        }, {
+                            "value": "Answer 2 - max 75 characters",
+                            "type": "string"
+                        }, {
+                            "value": "Answer 3 - max 75 characters",
+                            "type": "string"
+                        }, {
+                            "value": "Answer 4 - max 75 characters",
+                            "type": "string"
+                        }, {
+                            "value": "Time limit (sec) – 5, 10, 20, 30, 60, 90, 120, or 240 secs",
+                            "type": "string"
+                        }, {
+                            "value": "Correct answer(s) - choose at least one",
+                            "type": "string"
+                        }]
+                    ]
+                }
+            }
+
+            for j, i in enumerate (game):
+                question = [i ["question"] [ : 120]]
+                if i ["type"] != "MCQ":
+                    show_warning (j, f"Question type {i ['type']} not supported, skipping")
+                    continue
+                if len (i ["answers"]) > 4:
+                    show_warning (j, "More than maximum of 4 answers, skipping")
+                    continue
+                question.extend ([j [ : 75] for j in i ["answers"]] + [""] * (4 - len (i ["answers"])))
+                question.append (str (min ((5, 10, 20, 30, 45, 60, 90, 120, 180, 240), key = lambda x: abs (x - i ["time"]))))
+                question.append (",".join (str (j) for j in i ["correct"]))
+
+                template ["sheet"] ["data"].append (add_row (question))
+            window.zipcelx (template)
+
+        def quizizz_export (game):
+            template = {
+                "filename": "quizizz-export",
+                "sheet": {
+                    "data": [
+                        [{
+                            "value": "Question Text",
+                            "type": "string"
+                        }, {
+                            "value": "Question Type",
+                            "type": "string"
+                        }, {
+                            "value": "Option 1",
+                            "type": "string"
+                        }, {
+                            "value": "Option 2",
+                            "type": "string"
+                        }, {
+                            "value": "Option 3",
+                            "type": "string"
+                        }, {
+                            "value": "Option 4",
+                            "type": "string"
+                        }, {
+                            "value": "Option 5",
+                            "type": "string"
+                        }, {
+                            "value": "Correct Answer",
+                            "type": "string"
+                        }, {
+                            "value": "Time in seconds",
+                            "type": "string"
+                        }, {
+                            "value": "Image Link",
+                            "type": "string"
+                        }]
+                    ]
+                }
+            }
+
+            for j, i in enumerate (game):
+                question = [i ["question"]]
+                if i ["type"] == "MCQ":
+                    if len (i ["correct"]) > 1:
+                        question.append ("Checkbox")
+                    else:
+                        question.append ("Multiple Choice")
+                elif i ["type"] == "Type":
+                    question.append ("Fill-in-the-Blank")
+                else:
+                    show_warning (j, f"Question type {i ['type']} not supported, skipping")
+                    continue
+
+                if len (i ["answers"]) > 5:
+                    show_warning (j, "More than maximum of 5 answers, skipping")
+                    continue
+                question.extend (i ["answers"] + [""] * (5 - len (i ["answers"])))
+                question.append (",".join (str (j) for j in i ["correct"]))
+                question.extend ([str (i ["time"]), i ["image"]])
+
+                template ["sheet"] ["data"].append (add_row (question))
+            window.zipcelx (template)
+
+        def blooket_export (game):
+            pass
+
+        def convert (game_id, platform_in, platform_out):
+            converters = {
+                "kahoot": (kahoot_import, f"https://create.kahoot.it/rest/kahoots/{game_id}", kahoot_export),
+                "quizizz": (quizizz_import, f"https://quizizz.com/_quizserver/main/v2/quiz/{game_id}", quizizz_export),
+                "blooket": (blooket_import, f"https://dashboard.blooket.com/api/games?gameId={game_id}", blooket_export)
+            }
+            cors_proxy = "https://corsproxy.io/?" # Replace with your own CORS proxy if needed
+            def callback (req):
+                game = json.loads (req.text)
+                game = converters [platform_in] [0] (game)
+                print (json.dumps (game, indent = 4))
+                converters [platform_out] [2] (game)
+
+            ajax.get (cors_proxy + converters [platform_in] [1], oncomplete = callback, cache = True)
+        
+        # TESTING
+        window.kahoot_import, window.quizizz_import, window.blooket_import = kahoot_import, quizizz_import, blooket_import
+        window.kahoot_export, window.quizizz_export, window.blooket_export = kahoot_export, quizizz_export, blooket_export
+        window.convert = convert
+            
+
+
+        config = {
+            "filename": "kahoot-export",
+            "sheet": {
+                "data": [
+                    [{
+                        "value": "Test",
+                        "type": "string"
+                    }, {
+                        "value": "Test2",
+                        "type": "string"
+                    }],
+                    [{
+                        "value": "1",
+                        "type": "string"
+                    }, {
+                        "value": "2",
+                        "type": "string"
+                    }]
+                ]
+            }
+        }
+        #window.zipcelx(config);
     </script>
     <div id="site">
     </div>
