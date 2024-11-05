@@ -16,6 +16,18 @@
             display: flex;
             flex-direction: column;
         }
+        p, input, button, label, span {
+            font-family: Arial, sans-serif;
+            font-size: 32px;
+            margin: 20px;
+            line-height: normal;
+        }
+        input[type="radio"] {
+            display: none;
+        }
+        input[type="radio"]:checked + label {
+            background-color: #f0f0f0;
+        }
     </style>
 </head>
 <body onload="brython (2)">
@@ -314,6 +326,29 @@
 
     </script>
     <div id="site">
+        <form id="form">
+            <div id="game_id">
+                <input type="text" id="game_id" placeholder="Paste game ID or URL here" required>
+                <button type="submit">Convert!</button>
+            </div>
+            <div id="platform_in">
+                <span>Input platform:</span>
+                <input type="radio" name="platform_in" id="kahoot_in" value="kahoot" checked>
+                <label for="kahoot_in">Kahoot</label>
+                <input type="radio" name="platform_in" id="quizizz_in" value="quizizz">
+                <label for="quizizz_in">Quizizz</label>
+                <input type="radio" name="platform_in" id="blooket_in" value="blooket">
+                <label for="blooket_in">Blooket</label>
+            </div>
+            <div id="platform_out">
+                <span>Output platform:</span>
+                <input type="radio" name="platform_out" id="kahoot_out" value="kahoot" checked>
+                <label for="kahoot_out">Kahoot</label>
+                <input type="radio" name="platform_out" id="quizizz_out" value="quizizz">
+                <label for="quizizz_out">Quizizz</label>
+                <input type="radio" name="platform_out" id="blooket_out" value="blooket">
+                <label for="blooket_out">Blooket</label>
+        </form>
     </div>
 </body>
 </html>
