@@ -179,6 +179,7 @@
                     ]
                 }
             }
+            stats = {}
 
             for j, i in enumerate (game):
                 question = [i ["question"] [ : 120]]
@@ -193,7 +194,10 @@
                 question.append (",".join (str (j) for j in i ["correct"]))
 
                 template ["sheet"] ["data"].append (add_row (question))
+                stats [i ["type"]] = stats.get (i ["type"], 0) + 1
+
             window.zipcelx (template)
+            return stats
 
         def quizizz_export (game):
             template = {
@@ -234,6 +238,7 @@
                     ]
                 }
             }
+            stats = {}
 
             for j, i in enumerate (game):
                 question = [i ["question"]]
@@ -255,11 +260,15 @@
                 question.extend ([str (i ["time"]), i ["image"]])
 
                 template ["sheet"] ["data"].append (add_row (question))
+                stats [i ["type"]] = stats.get (i ["type"], 0) + 1
+
             window.zipcelx (template)
+            return stats
 
         def blooket_export (game):
             template = ',,,,,,,,,\n,Question Text,Answer 1,Answer 2,"Answer 3\n(Optional)","Answer 4\n(Optional)","Time Limit (sec)\n(Max: 300 seconds)","Correct Answer(s)\n(Only include Answer #)",,\n'
             escape = lambda x: f"\"{x.replace ('"', '""')}\""
+            stats = {}
 
             for j, i in enumerate (game):
                 question = ["", escape (i ["question"])]
@@ -276,9 +285,12 @@
                 question.append ("typing" if i ["type"] == "Typing" else "")
 
                 template += ",".join (question) + "\n"
+                stats [i ["type"]] = stats.get (i ["type"], 0) + 1
+
             blob = window.Blob.new ([template], {"type": "text/csv"})
             link = html.A ("", href = window.URL.createObjectURL (blob), download = "blooket-export.csv")
             link.click ()
+            return stats
 
         def convert (game_id, platform_in, platform_out):
             converters = {
@@ -291,7 +303,7 @@
                 game = json.loads (req.text)
                 game = converters [platform_in] [0] (game)
                 print (json.dumps (game, indent = 4))
-                converters [platform_out] [2] (game)
+                print (converters [platform_out] [2] (game))
 
             ajax.get (cors_proxy + converters [platform_in] [1], oncomplete = callback, cache = True)
         
@@ -299,31 +311,7 @@
         window.kahoot_import, window.quizizz_import, window.blooket_import = kahoot_import, quizizz_import, blooket_import
         window.kahoot_export, window.quizizz_export, window.blooket_export = kahoot_export, quizizz_export, blooket_export
         window.convert = convert
-            
 
-
-        config = {
-            "filename": "kahoot-export",
-            "sheet": {
-                "data": [
-                    [{
-                        "value": "Test",
-                        "type": "string"
-                    }, {
-                        "value": "Test2",
-                        "type": "string"
-                    }],
-                    [{
-                        "value": "1",
-                        "type": "string"
-                    }, {
-                        "value": "2",
-                        "type": "string"
-                    }]
-                ]
-            }
-        }
-        #window.zipcelx(config);
     </script>
     <div id="site">
     </div>
