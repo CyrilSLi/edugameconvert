@@ -138,6 +138,17 @@
         def add_row (values):
             return [{"value": i, "type": "string"} for i in values]
 
+        def remove_answers (num, question, max_answers):
+            if len (question ["answers"]) > max_answers:
+                if max (question ["correct"]) <= max_answers:
+                    question ["answers"] = question ["answers"] [ : max_answers]
+                    show_warning (num, f"More than maximum of {max_answers} answers, removing excess answers")
+                    return True # Success
+                else:
+                    show_warning (num, f"More than maximum of {max_answers} answers and correct answer is outside range, skipping")
+                    return False # continue loop
+            return True # Success
+
         def kahoot_export (game):
             template = {
                 "filename": "kahoot-export",
@@ -174,9 +185,9 @@
                 if i ["type"] != "MCQ":
                     show_warning (j, f"Question type {i ['type']} not supported, skipping")
                     continue
-                if len (i ["answers"]) > 4:
-                    show_warning (j, "More than maximum of 4 answers, skipping")
+                if not remove_answers (j, i, 4):
                     continue
+
                 question.extend ([j [ : 75] for j in i ["answers"]] + [""] * (4 - len (i ["answers"])))
                 question.append (str (min ((5, 10, 20, 30, 45, 60, 90, 120, 180, 240), key = lambda x: abs (x - i ["time"]))))
                 question.append (",".join (str (j) for j in i ["correct"]))
@@ -237,8 +248,7 @@
                     show_warning (j, f"Question type {i ['type']} not supported, skipping")
                     continue
 
-                if len (i ["answers"]) > 5:
-                    show_warning (j, "More than maximum of 5 answers, skipping")
+                if not remove_answers (j, i, 5):
                     continue
                 question.extend (i ["answers"] + [""] * (5 - len (i ["answers"])))
                 question.append (",".join (str (j) for j in i ["correct"]))
@@ -248,7 +258,27 @@
             window.zipcelx (template)
 
         def blooket_export (game):
-            template = ",,,,,,,,,\n,,,,,,,,,\n"
+            template = ',,,,,,,,,\n,Question Text,Answer 1,Answer 2,"Answer 3\n(Optional)","Answer 4\n(Optional)","Time Limit (sec)\n(Max: 300 seconds)","Correct Answer(s)\n(Only include Answer #)",,\n'
+            escape = lambda x: f"\"{x.replace ('"', '""')}\""
+
+            for j, i in enumerate (game):
+                question = ["", escape (i ["question"])]
+                if i ["type"] not in ("MCQ", "Typing"):
+                    show_warning (j, f"Question type {i ['type']} not supported, skipping")
+                    continue
+                if not remove_answers (j, i, 4):
+                    continue
+
+                question.extend ([escape (j) for j in i ["answers"]] + [""] * (4 - len (i ["answers"])))
+                question.append (str (min (i ["time"], 300)))
+                question.append (f'"{",".join (str (j) for j in i ["correct"])}"')
+                question.append ("")
+                question.append ("typing" if i ["type"] == "Typing" else "")
+
+                template += ",".join (question) + "\n"
+            blob = window.Blob.new ([template], {"type": "text/csv"})
+            link = html.A ("", href = window.URL.createObjectURL (blob), download = "blooket-export.csv")
+            link.click ()
 
         def convert (game_id, platform_in, platform_out):
             converters = {
