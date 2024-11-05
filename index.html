@@ -27,7 +27,7 @@
         import json
 
         """
-        Question types: "MCQ", "Type"
+        Question types: "MCQ", "Typing"
         'Poll' can be supported but not implemented yet
         Supported fields: "question", "type", "answers", "correct", "time", "image"
         """
@@ -49,7 +49,7 @@
                     continue
                 question = {
                     "question": i ["question"],
-                    "type": {"quiz": "MCQ", "multiple_select_quiz": "MCQ", "open_ended": "Type"} [i ["type"]],
+                    "type": {"quiz": "MCQ", "multiple_select_quiz": "MCQ", "open_ended": "Typing"} [i ["type"]],
                     "time": i ["time"] // 1000,
                     "image": i ["image"] if "image" in i else ""
                 }
@@ -88,7 +88,7 @@
                 exp = re.compile ("<[^>]*>") # Strip HTML tag
                 question = {
                     "question": exp.sub ("", i ["structure"] ["query"] ["text"]),
-                    "type": {"MCQ": "MCQ", "MSQ": "MCQ", "BLANK": "Type"} [i ["type"]],
+                    "type": {"MCQ": "MCQ", "MSQ": "MCQ", "BLANK": "Typing"} [i ["type"]],
                     "time": i ["time"] // 1000,
                     "image": i ["structure"] ["query"] ["media"] [0] ["url"] if i ["structure"] ["query"] ["media"] else "",
                     "correct": []
@@ -99,9 +99,6 @@
                         question ["correct"] = [i ["structure"] ["answer"] + 1]
                 else:
                     question ["correct"] = [k + 1 for k in i ["structure"] ["answer"]]
-                if not len (question ["correct"]):
-                    show_warning (j, "No correct answer found (likely a poll), skipping")
-                    continue
 
                 answers = []
                 for k in i ["structure"] ["options"]:
@@ -110,7 +107,13 @@
                         break
                     answers.append (exp.sub ("", k ["text"]))
                 else:
+                    if question ["type"] == "Typing":
+                        question ["correct"] = list (range (1, len (answers) + 1))
+                    elif not len (question ["correct"]):
+                        show_warning (j, "No correct answer found (likely a poll), skipping")
+                        continue
                     question ["answers"] = answers
+
                     export.append (question)
             return export
 
@@ -118,14 +121,18 @@
             show_metadata (game ["title"], game ["author"], game ["desc"], "Blooket")
             export = []
             for i in game ["questions"]:
-                export.append ({
+                question = {
                     "question": i ["question"],
-                    "type": {"mc": "MCQ", "typing": "Type"} [i ["qType"]],
+                    "type": {"mc": "MCQ", "typing": "Typing"} [i ["qType"]],
                     "answers": i ["answers"],
                     "correct": [i ["answers"].index (j) + 1 for j in i ["correctAnswers"]],
                     "time": i ["timeLimit"],
                     "image": i ["image"] ["url"] if "image" in i else ""
-                })
+                }
+                if question ["type"] == "Typing":
+                    question ["correct"] = list (range (1, len (question ["answers"]) + 1))
+
+                export.append (question)
             return export
 
         def add_row (values):
@@ -133,7 +140,7 @@
 
         def kahoot_export (game):
             template = {
-                "filename": "quizizz-export",
+                "filename": "kahoot-export",
                 "sheet": {
                     "data": [
                         [{
@@ -224,7 +231,7 @@
                         question.append ("Checkbox")
                     else:
                         question.append ("Multiple Choice")
-                elif i ["type"] == "Type":
+                elif i ["type"] == "Typing":
                     question.append ("Fill-in-the-Blank")
                 else:
                     show_warning (j, f"Question type {i ['type']} not supported, skipping")
@@ -241,7 +248,7 @@
             window.zipcelx (template)
 
         def blooket_export (game):
-            pass
+            template = ",,,,,,,,,\n,,,,,,,,,\n"
 
         def convert (game_id, platform_in, platform_out):
             converters = {
