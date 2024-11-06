@@ -7,7 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/brython@3/brython_stdlib.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/zipcelx@1.6.2/lib/standalone.min.js"></script>
     <style>
-        html, body, div, span {
+        html, body, div {
             margin: 0px;
         }
         #site {
@@ -21,14 +21,13 @@
             font-size: 32px;
             color: black;
             line-height: normal;
+            text-decoration: none;
+            font-weight: normal;
             padding: 0px;
         }
         input, button {
             border-radius: 0px;
-            text-decoration: none;
-            font-weight: normal;
             background-color: #f8f8f8;
-            color: black;
             -webkit-appearance: none;
             border: 1px solid gray;
         }
@@ -90,7 +89,7 @@
         }
     </style>
 </head>
-<body onload="brython (2)">
+<body onload="brython (0)">
     <noscript>
         <p>JavaScript is required to use this website.</p>
     </noscript>
@@ -127,12 +126,6 @@ Supported question types and fields for each platform are listed below:
     <script type = "text/python">
         from browser import document, html, ajax, window
         import json
-
-        """
-        Question types: "MCQ", "Typing"
-        'Poll' can be supported but not implemented yet
-        Supported fields: "question", "type", "answers", "correct", "time", "image"
-        """
 
         def log (msg):
             document ["output"].value += msg + "\n"
@@ -436,11 +429,11 @@ Supported question types and fields for each platform are listed below:
                 log (f"\n>>> Running {converters [platform_in] [0].__name__}()")
                 game = converters [platform_in] [0] (game)
                 show_stats ("Imported {stats}\n", {i: len ([j for j in game if j ["type"] == i]) for i in set (j ["type"] for j in game)}) # Count question types
+                window.console.log (json.dumps (game, indent = 4))
                 
-                log (f"\n>>> Running {converters [platform_out] [2].__name__}()")
+                log (f">>> Running {converters [platform_out] [2].__name__}()")
                 show_stats ("Exported {stats}\n", converters [platform_out] [2] (game))
                 log (">>> Conversion complete, saving to file")
-                
 
             log (">>> Fetching game data")
             ajax.get (cors_proxy + converters [platform_in] [1], oncomplete = callback, cache = True)
