@@ -19,14 +19,74 @@
         p, input, button, label, span {
             font-family: Arial, sans-serif;
             font-size: 32px;
-            margin: 20px;
+            color: black;
             line-height: normal;
+            padding: 0px;
+        }
+        input, button {
+            border-radius: 0px;
+            text-decoration: none;
+            font-weight: normal;
+            background-color: #f8f8f8;
+            color: black;
+            -webkit-appearance: none;
+            border: 1px solid gray;
+        }
+        ::placeholder {
+            color: gray;
+            opacity: 1;
+        }
+        ::-ms-input-placeholder {
+            color: gray;
+        }
+        span, label, button {
+            margin: 0px 10px;
+        }
+        #form {
+            display: flex;
+            flex-direction: column;
+        }
+        #platform {
+            display: flex;
+            flex-direction: row;
+            margin: 0px 10px;
+        }
+        button[type="submit"] {
+            flex: 1;
+        }
+        #report {
+            margin: 0px 20px 20px;
+            padding: 5px 7px;
+            font-size: 20px;
+        }
+        #game_url {
+            margin: 20px;
+            padding: 5px 7px;
+            font-size: 28px;
+            display: block;
+            flex: 1;
         }
         input[type="radio"] {
-            display: none;
+            width: 0px;
+            height: 0px;
+            border: 0px;
+            margin: 0px;
+            padding: 0px;
         }
         input[type="radio"]:checked + label {
-            background-color: #f0f0f0;
+            background-color: lightcoral;
+        }
+        textarea {
+            font-family: monospace;
+            font-size: 20px;
+            margin: 20px;
+            padding: 10px;
+            color: darkred;
+            line-height: normal;
+            flex: 1;
+            resize: none;
+            word-break: break-all;
+            overflow-y: scroll;
         }
     </style>
 </head>
@@ -34,6 +94,36 @@
     <noscript>
         <p>JavaScript is required to use this website.</p>
     </noscript>
+    <div id="site">
+        <form action = "javascript:void (0);" id="form">
+            <input type="text" id="game_url" placeholder="Paste URL of game here:" required>
+            <div id="platform">
+                <span>To:</span>
+                <input type="radio" name="platform" id="kahoot" value="kahoot" checked>
+                <label for="kahoot">Kahoot</label>
+                <input type="radio" name="platform" id="quizizz" value="quizizz">
+                <label for="quizizz">Quizizz</label>
+                <input type="radio" name="platform" id="blooket" value="blooket">
+                <label for="blooket">Blooket</label>
+                <button type="submit">&nbsp;Convert!&nbsp;</button>
+            </div>
+        </form>
+
+<textarea id="output" readonly>
+Welcome to edugameconvert! This is a tool to convert questions between Kahoot, Quizizz, and Blooket.
+Paste the URL of a question set in the box above, select the platform to convert to, and click "Convert!"
+A file would be downloaded with the converted questions, which you can import into the selected platform.
+Information and warnings would be displayed here. Enjoy!
+
+Each platform has different import limitations. The tool would attempt to convert as much as possible.
+Supported question types and fields for each platform are listed below:
+- Kahoot:  MCQ (max 4 answers), time limit (limited options)
+- Quizizz: MCQ (max 5 answers), time limit (limited options), Typing (max 5 answers), Image (URL)
+- Blooket: MCQ (max 4 answers), time limit (max 300 seconds), Typing (max 4 answers)
+</textarea>
+
+        <button id="report" onclick="location.href='https://github.com/CyrilSLi/edugameconvert';">GitHub&nbsp;repo&nbsp;/&nbsp;Report&nbsp;a&nbsp;bug</button>
+    </div>
     <script type = "text/python">
         from browser import document, html, ajax, window
         import json
@@ -44,13 +134,15 @@
         Supported fields: "question", "type", "answers", "correct", "time", "image"
         """
 
+        def log (msg):
+            document ["output"].value += msg + "\n"
         def show_metadata (title, creator, description, platform):
-            # TODO: Implement metadata display
-            window.console.log (f"show_metadata ({title}, {creator}, {description}, {platform})")
-
+            log (f'{platform} game "{title}" by {creator}') # Description is currently not used
         def show_warning (question, message):
-            # TODO: Implement warning display
-            window.console.log (f"show_warning ({question}, {message})")
+            log (f'WARNING - Question {question + 1}: {message}')
+        def show_stats (msg, stats):
+           stats ["Total"] = sum (stats.values ())
+           log (msg.format (stats = ", ".join (f"{v} {k}" for k, v in stats.items ())))
 
         def kahoot_import (game):
             show_metadata (game ["title"], game ["creator_username"], game ["description"], "Kahoot")
@@ -83,7 +175,6 @@
                     export.append (question)
 
             return export
-                
 
         def quizizz_import (game):
             import re
@@ -304,7 +395,31 @@
             link.click ()
             return stats
 
-        def convert (game_id, platform_in, platform_out):
+        def convert (_):
+            import re
+            game_url = document ["game_url"].value
+            platform_out = document.querySelector ('input[name="platform"]:checked').value
+            id_regex = r"[0-9a-f]{24}" # 24-character hex
+            document ["output"].value = ""
+
+            if "kahoot.it" in game_url:
+                id_regex = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" # UUID
+                platform_in = "kahoot"
+            elif "quizizz.com" in game_url:
+                game_id = game_url.split ("/") [-1]
+                platform_in = "quizizz"
+            elif "blooket.com" in game_url:
+                game_id = game_url.split ("/") [-1]
+                platform_in = "blooket"
+            else:
+                log (f"Invalid game URL: {game_url}")
+                return
+            game_id = re.search (id_regex, game_url)
+            if game_id is None:
+                log (f"Cannot find game ID in URL: {game_url}")
+                return
+            game_id = game_id [0]
+
             converters = {
                 "kahoot": (kahoot_import, f"https://create.kahoot.it/rest/kahoots/{game_id}", kahoot_export),
                 "quizizz": (quizizz_import, f"https://quizizz.com/_quizserver/main/v2/quiz/{game_id}", quizizz_export),
@@ -312,43 +427,25 @@
             }
             cors_proxy = "https://corsproxy.io/?" # Replace with your own CORS proxy if needed
             def callback (req):
+                if req.status != 200:
+                    log (f"HTTP Error {req.status}")
+                    log ("Please check the game URL and try again.")
+                    return
                 game = json.loads (req.text)
+
+                log (f"\n>>> Running {converters [platform_in] [0].__name__}()")
                 game = converters [platform_in] [0] (game)
-                print (json.dumps (game, indent = 4))
-                print (converters [platform_out] [2] (game))
+                show_stats ("Imported {stats}\n", {i: len ([j for j in game if j ["type"] == i]) for i in set (j ["type"] for j in game)}) # Count question types
+                
+                log (f"\n>>> Running {converters [platform_out] [2].__name__}()")
+                show_stats ("Exported {stats}\n", converters [platform_out] [2] (game))
+                log (">>> Conversion complete, saving to file")
+                
 
+            log (">>> Fetching game data")
             ajax.get (cors_proxy + converters [platform_in] [1], oncomplete = callback, cache = True)
-        
-        # TESTING
-        window.kahoot_import, window.quizizz_import, window.blooket_import = kahoot_import, quizizz_import, blooket_import
-        window.kahoot_export, window.quizizz_export, window.blooket_export = kahoot_export, quizizz_export, blooket_export
-        window.convert = convert
 
+        document ["form"].bind ("submit", convert)
     </script>
-    <div id="site">
-        <form id="form">
-            <div id="game_id">
-                <input type="text" id="game_id" placeholder="Paste game ID or URL here" required>
-                <button type="submit">Convert!</button>
-            </div>
-            <div id="platform_in">
-                <span>Input platform:</span>
-                <input type="radio" name="platform_in" id="kahoot_in" value="kahoot" checked>
-                <label for="kahoot_in">Kahoot</label>
-                <input type="radio" name="platform_in" id="quizizz_in" value="quizizz">
-                <label for="quizizz_in">Quizizz</label>
-                <input type="radio" name="platform_in" id="blooket_in" value="blooket">
-                <label for="blooket_in">Blooket</label>
-            </div>
-            <div id="platform_out">
-                <span>Output platform:</span>
-                <input type="radio" name="platform_out" id="kahoot_out" value="kahoot" checked>
-                <label for="kahoot_out">Kahoot</label>
-                <input type="radio" name="platform_out" id="quizizz_out" value="quizizz">
-                <label for="quizizz_out">Quizizz</label>
-                <input type="radio" name="platform_out" id="blooket_out" value="blooket">
-                <label for="blooket_out">Blooket</label>
-        </form>
-    </div>
 </body>
 </html>
