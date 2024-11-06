@@ -136,7 +136,7 @@ Supported question types and fields for each platform are listed below:
             log (f'WARNING - Question {question + 1}: {message}')
         def show_stats (msg, stats):
            stats ["Total"] = sum (stats.values ())
-           log (msg.format (stats = ", ".join (f"{v} {k}" for k, v in stats.items (), key = lambda x: x [1])))
+           log (msg.format (stats = ", ".join (f"{v} {k}" for k, v in sorted (stats.items (), key = lambda x: x [1]))))
 
         def kahoot_import (game):
             show_metadata (game ["title"], game ["creator_username"], game ["description"], "Kahoot")
@@ -429,7 +429,7 @@ Supported question types and fields for each platform are listed below:
 
                 log (f"\n>>> Running {converters [platform_in] [0].__name__}()")
                 game = converters [platform_in] [0] (game)
-                show_stats ("Imported {stats}\n", {i: len ([j for j in game if j ["type"] == i]) for i in sorted (set (j ["type"] for j in game))}) # Count question types
+                show_stats ("Imported {stats}\n", {i: len ([j for j in game if j ["type"] == i]) for i in set (j ["type"] for j in game)}) # Count question types
                 window.console.log (json.dumps (game, indent = 4))
                 
                 log (f">>> Running {converters [platform_out] [2].__name__}()")
